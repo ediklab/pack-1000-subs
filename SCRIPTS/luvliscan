@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Color Codes
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# --- Usage and Input Validation ---
+if [ -z "$1" ] || [ -z "$2" ]; then
+  echo -e "${YELLOW}Usage: $0 <target_ip> <machine_name>${NC}"
+  echo "Example: $0 10.10.10.5 Oopsie"
+  exit 1
+fi
+
+# --- Setup ---
+TARGET_IP=$1
+MACHINE_NAME=$2
+# Sanitize the machine name to create a valid directory name
+OUTPUT_DIR=$(echo "$MACHINE_NAME" | sed 's/[^a-zA-Z0-9_.-]/_/g')
+STATE_FILE="${OUTPUT_DIR}/ports.last_scan"
+
+echo -e "${BLUE}[*] Creating output directory: ${GREEN}${OUTPUT_DIR}${NC}"
+mkdir -p "$OUTPUT_DIR"
+
+# --- Verification ---
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo -e "${YELLOW}[!] Failed to create output directory: ${OUTPUT_DIR}. Check permissions.${NC}"
+    exit 1
+fi
+
+# --- Funciones de Escaneo ---
+run_service_scans() {
+    local ports_to_scan=$1
+    if [ -z "$ports_to_scan" ]; then return; fi
+    echo -e "${BLUE}[*] Running detailed service scans on: ${GREEN}$ports_to_scan${NC}"
+    nmap -p "$ports_to_scan" -sVC -Pn -n -T4 -oA "${OUTPUT_DIR}/service_scan_${ports_to_scan//,/_}" "$TARGET_IP"
+}
+
+run_specific_scans() {
+    local ports_to_scan=$1
+    if [ -z "$ports_to_scan" ]; then return; fi
+    echo -e "${BLUE}[*] Running specific script scans based on config file...${NC}"
+    
+    local config_file
+    config_file="$(dirname "$0")/nmap_scripts.conf"
+
+    if [ ! -f "$config_file" ]; then
+        echo -e "${YELLOW}[!] Config file not found at $config_file. Skipping specific scans.${NC}"
+        return
+    fi
+
+    IFS=',' read -ra PORT_ARRAY <<< "$ports_to_scan"
+    for port in "${PORT_ARRAY[@]}"; do
+        rule=$(grep -E "^${port}:" "$config_file" | cut -d':' -f2-)
+        
+        if [ -n "$rule" ]; then
+            # Check if the rule uses the output directory placeholder
+            if [[ ! "$rule" =~ \{scan_dir\} ]]; then
+                echo -e "${YELLOW}[!] Warning: Rule for port $port in nmap_scripts.conf does not contain {scan_dir}. Output may go to current directory.${NC}"
+            fi
+            command=$(echo "$rule" | sed "s|{target}|$TARGET_IP|g; s|{port}|$port|g; s|{scan_dir}|$OUTPUT_DIR|g")
+            echo -e "${YELLOW}[+] Port $port: Found rule. Executing...${NC}"
+            echo "    $command"
+            eval "$command" &
+        fi
+    done
+    wait
+}
+
+# --- Lógica Principal ---
+echo -e "\n${BLUE}[*] Starting full TCP port scan for ${GREEN}$TARGET_IP (${MACHINE_NAME})${NC}..."
+current_ports_file=$(mktemp)
+nmap -p- -sS --min-rate 5000 --open -Pn -n -T4 "$TARGET_IP" | grep -oP '^\d+/tcp' | cut -d'/' -f1 > "$current_ports_file"
+
+echo -e "${GREEN}[+] Scan complete.${NC}"
+
+if [ ! -f "$STATE_FILE" ]; then
+    echo -e "${YELLOW}[*] First scan for this target. Treating all open ports as new.${NC}"
+    cp "$current_ports_file" "$STATE_FILE"
+    
+    all_ports=$(paste -sd, "$STATE_FILE")
+    echo -e "${GREEN}[+] Found ports: $all_ports${NC}"
+    
+    run_service_scans "$all_ports"
+    run_specific_scans "$all_ports"
+else
+    # --- Escaneos Posteriores ---
+    echo -e "${BLUE}[*] Comparing with previous scan results...${NC}"
+    new_ports=$(grep -Fxvf "$STATE_FILE" "$current_ports_file" | paste -sd, -)
+
+    if [ -z "$new_ports" ]; then
+        echo -e "${GREEN}[+] No new ports discovered since last scan.${NC}"
+    else
+        echo -e "${YELLOW}[!] New ports discovered: $new_ports${NC}"
+        run_service_scans "$new_ports"
+        run_specific_scans "$new_ports"
+        cat "$current_ports_file" > "$STATE_FILE"
+        echo -e "${GREEN}[+] State file updated.${NC}"
+    fi
+fi
+
+rm "$current_ports_file"
+echo -e "\n${GREEN}Adaptive scan finished.${NC}"

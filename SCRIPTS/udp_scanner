@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Colors
+GREEN="\033[0;32m"
+RED="\033[0;31m"
+YELLOW="\033[1;33m"
+NC="\033[0m" # No Color
+
+# --- Usage function ---
+usage() {
+    echo -e "${YELLOW}Usage: $0 <target_ip> [--full]${NC}"
+    echo -e "  <target_ip>: The IP address of the target machine."
+    echo -e "  --full     : Optional. Performs a full scan on all 65535 UDP ports (EXTREMELY SLOW)."
+    echo -e "\n${YELLOW}Default scan (without --full) targets the top 1000 most common UDP ports.${NC}"
+    exit 1
+}
+
+# --- Argument validation ---
+if [ -z "$1" ]; then
+    usage
+fi
+
+TARGET_IP=$1
+SCAN_MODE="--top-ports 1000"
+SCAN_TYPE="Top 1000 Ports"
+
+if [ "$2" == "--full" ]; then
+    SCAN_MODE="-p-"
+    SCAN_TYPE="Full (All 65535 Ports)"
+fi
+
+OUTPUT_FILE="udp_scan_${TARGET_IP}.nmap"
+
+# --- Main ---
+echo -e "${GREEN}[*] Starting UDP Scan on target: ${TARGET_IP}${NC}"
+echo -e "${GREEN}[*] Scan Type: ${SCAN_TYPE}${NC}"
+echo -e "${RED}[!] WARNING: UDP scans are inherently slow and can be unreliable. Please be patient.${NC}"
+echo -e "${YELLOW}[+] Nmap command to be executed:${NC}"
+echo "nmap -sU -sV --version-intensity 5 ${SCAN_MODE} -oN ${OUTPUT_FILE} ${TARGET_IP}"
+echo -e "${GREEN}--------------------------------------------------${NC}"
+
+# Execute Nmap
+nmap -sU -sV --version-intensity 5 ${SCAN_MODE} -oN ${OUTPUT_FILE} ${TARGET_IP}
+
+echo -e "${GREEN}--------------------------------------------------${NC}"
+echo -e "${GREEN}[*] UDP Scan finished!${NC}"
+echo -e "${GREEN}[*] Results saved to: ${OUTPUT_FILE}${NC}"
