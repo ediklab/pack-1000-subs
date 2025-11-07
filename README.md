@@ -280,7 +280,7 @@ grep -i "privesc" GOLD_ONELINERS.txt
 
 ## 📝 CHANGELOG
 
-### v1.0 (Nov 2024) - Initial Release
+### v1.0 (Nov 2025) - Initial Release
 - ✅ GOLD_ONELINERS.txt con 15 comandos esenciales
 - ✅ luvliscan (scanner adaptivo inteligente)
 - ✅ bash_port_scanner.sh (post-exploitation)
@@ -327,7 +327,7 @@ Este pack te da el primero. Los otros dos dependen de ti.
 
 **🕶️ Made with ❤️ by @3diklab**
 
-**🔥 1000 Subs Milestone - Nov 2024**
+**🔥 1000 Subs Milestone - Nov 2025**
 
 **🚀 Para la comunidad, por la comunidad**
 
