@@ -179,7 +179,7 @@ cat GOLD_ONELINERS.txt
 ### 5. Probar en tu lab
 ```bash
 # Ejemplo: Escanear una máquina HTB
-./SCRIPTS/improvednmapv3 10.10.10.5 Oopsie
+./SCRIPTS/luvliscan 10.10.10.5 Oopsie
 
 # Enumerar PrivEsc
 ./SCRIPTS/privesc_check.sh
